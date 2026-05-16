@@ -87,12 +87,14 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
       volumes:
-        - name: mysql-storage
-          persistentVolumeClaim:
-            claimName: mysql-pvc
-        - name: init-sql
-          configMap:
-            name: mysql-init-sql
+  - name: mysql-storage
+    hostPath:
+      path: /data/mysql
+      type: DirectoryOrCreate
+
+  - name: init-sql
+    configMap:
+      name: mysql-init-sql
 
 ---
 # ── MySQL Service (ClusterIP - internal only) ─────────────────
