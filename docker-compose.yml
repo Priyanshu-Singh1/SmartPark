@@ -1,0 +1,89 @@
+# ============================================================
+# SmartPark - docker-compose.yml (LOCAL DEVELOPMENT ONLY)
+# WHERE TO PLACE: root of your SmartPark project folder
+# PURPOSE: Run the entire app locally before pushing to K8s
+# ============================================================
+
+version: '3.8'
+
+services:
+
+  # ── PHP Application ──────────────────────────────────────
+  smartpark-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smartpark_app
+    ports:
+      - "8080:80"           # Visit: http://localhost:8080
+    environment:
+      DB_HOST: smartpark-db
+      DB_PORT: 3306
+      DB_NAME: smartpark
+      DB_USER: smartpark_user
+      DB_PASSWORD: SmartPark@2024
+    depends_on:
+      smartpark-db:
+        condition: service_healthy
+    networks:
+      - smartpark-network
+    volumes:
+      - .:/var/www/html     # Live reload in dev mode
+
+  # ── MySQL Database ───────────────────────────────────────
+  smartpark-db:
+    image: mysql:8.0
+    container_name: smartpark_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: Root@SmartPark2024
+      MYSQL_DATABASE: smartpark
+      MYSQL_USER: smartpark_user
+      MYSQL_PASSWORD: SmartPark@2024
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartpark-network
+
+  # ── Prometheus (Monitoring) ──────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: smartpark_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - smartpark-network
+
+  # ── Grafana (Visualization) ──────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: smartpark_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: Admin@SmartPark
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - smartpark-network
+
+volumes:
+  mysql_data:
+  grafana_data:
+
+networks:
+  smartpark-network:
+    driver: bridge

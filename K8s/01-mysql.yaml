@@ -1,0 +1,110 @@
+# ============================================================
+# SmartPark - 01-mysql.yaml
+# WHERE TO PLACE: k8s/ folder in your project
+# APPLY WITH: kubectl apply -f k8s/01-mysql.yaml
+# ============================================================
+
+# ── Persistent Volume Claim (MySQL Data Storage) ─────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: smartpark
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi # 5GB storage for parking data
+  storageClassName: gp2 # AWS EBS storage class
+
+---
+# ── MySQL Deployment ──────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smartpark-mysql
+  namespace: smartpark
+  labels:
+    app: smartpark-mysql
+spec:
+  replicas: 1 # Only 1 MySQL pod (stateful)
+  selector:
+    matchLabels:
+      app: smartpark-mysql
+  template:
+    metadata:
+      labels:
+        app: smartpark-mysql
+    spec:
+      nodeSelector:
+          role: app-db
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: smartpark-secret
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: smartpark-config
+                  key: DB_NAME
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: smartpark-secret
+                  key: DB_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: smartpark-secret
+                  key: DB_PASSWORD
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            exec:
+              command:
+                - mysqladmin
+                - ping
+                - -h
+                - localhost
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+        - name: init-sql
+          configMap:
+            name: mysql-init-sql
+
+---
+# ── MySQL Service (ClusterIP - internal only) ─────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: smartpark-mysql-service
+  namespace: smartpark
+spec:
+  selector:
+    app: smartpark-mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+  type: ClusterIP # Not exposed externally
