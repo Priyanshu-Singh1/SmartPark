@@ -19,7 +19,7 @@ spec:
     requests:
       storage: 2Gi
 
-  storageClassName: gp2
+  storageClassName: local-path # Use local storage for Grafana data (fast but not durable)
 
 ---
 # ── Grafana ConfigMap ────────────────────────────────────────
