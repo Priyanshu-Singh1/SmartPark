@@ -5,22 +5,25 @@
 # PURPOSE: Run Jenkins inside Kubernetes for CI/CD
 # ============================================================
 
-# ── Jenkins PVC ───────────────────────────────────────────────
+# ── Jenkins PVC ──────────────────────────────────────────────
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: jenkins-pvc
   namespace: smartpark
+
 spec:
   accessModes:
     - ReadWriteOnce
+
   resources:
     requests:
       storage: 10Gi
+
   storageClassName: gp2
 
 ---
-# ── Jenkins Deployment ────────────────────────────────────────
+# ── Jenkins Deployment ───────────────────────────────────────
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,81 +31,90 @@ metadata:
   namespace: smartpark
   labels:
     app: jenkins
+
 spec:
   replicas: 1
+
   selector:
     matchLabels:
       app: jenkins
+
   template:
     metadata:
       labels:
         app: jenkins
+
     spec:
-  securityContext:
-    fsGroup: 1000
-    runAsUser: 1000
+      serviceAccountName: jenkins-sa
 
-  nodeSelector:
-    kubernetes.io/hostname: smartpark-master
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
 
-  containers:
-    - name: jenkins
-      image: jenkins/jenkins:lts-jdk17
+      nodeSelector:
+        kubernetes.io/hostname: smartpark-master
 
-      ports:
-        - containerPort: 8080
-        - containerPort: 50000
+      containers:
+        - name: jenkins
+          image: jenkins/jenkins:lts-jdk17
 
-      env:
-        - name: JAVA_OPTS
-          value: "-Xmx2g -Dhudson.plugins.git.GitSCM.ALLOW_LOCAL_CHECKOUT=true"
+          ports:
+            - containerPort: 8080
+            - containerPort: 50000
 
-      volumeMounts:
+          env:
+            - name: JAVA_OPTS
+              value: "-Xmx2g -Dhudson.plugins.git.GitSCM.ALLOW_LOCAL_CHECKOUT=true"
+
+          volumeMounts:
+            - name: jenkins-home
+              mountPath: /var/jenkins_home
+
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1.5Gi"
+              cpu: "1000m"
+
+      volumes:
         - name: jenkins-home
-          mountPath: /var/jenkins_home
+          persistentVolumeClaim:
+            claimName: jenkins-pvc
 
         - name: docker-sock
-          mountPath: /var/run/docker.sock
-
-      resources:
-        requests:
-          memory: "512Mi"
-          cpu: "250m"
-        limits:
-          memory: "1.5Gi"
-          cpu: "1000m"
-
-  volumes:
-    - name: jenkins-home
-      hostPath:
-        path: /data/jenkins
-        type: DirectoryOrCreate
-
-    - name: docker-sock
-      hostPath:
-        path: /var/run/docker.sock
+          hostPath:
+            path: /var/run/docker.sock
 
 ---
-# ── Jenkins Service ───────────────────────────────────────────
+# ── Jenkins Service ──────────────────────────────────────────
 apiVersion: v1
 kind: Service
 metadata:
   name: jenkins-service
   namespace: smartpark
+
 spec:
   selector:
     app: jenkins
+
   ports:
     - name: web
       port: 8080
       targetPort: 8080
+
     - name: agent
       port: 50000
       targetPort: 50000
-  type: LoadBalancer # Access Jenkins at EC2_IP:8080
+
+  type: LoadBalancer
 
 ---
-# ── Jenkins ServiceAccount & RBAC ────────────────────────────
+# ── Jenkins ServiceAccount ───────────────────────────────────
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -110,14 +122,17 @@ metadata:
   namespace: smartpark
 
 ---
+# ── Jenkins RBAC ─────────────────────────────────────────────
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: jenkins-cluster-admin
+
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: cluster-admin # Jenkins needs full cluster access for deployments
+  name: cluster-admin
+
 subjects:
   - kind: ServiceAccount
     name: jenkins-sa
