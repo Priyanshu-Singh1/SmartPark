@@ -13,16 +13,19 @@ metadata:
   namespace: smartpark
   labels:
     app: smartpark-app
+
 spec:
-  replicas: 1 # Start with 2 pods for availability
+  replicas: 2
   selector:
     matchLabels:
       app: smartpark-app
+
   strategy:
-    type: RollingUpdate # Zero-downtime deployments
+    type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
       maxUnavailable: 0
+
   template:
     metadata:
       labels:
@@ -30,107 +33,120 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "80"
+
     spec:
-  nodeSelector:
-    role: app-db
-  containers:
-    - name: smartpark-php
-      image: priyanshusingh18/smartpark:latest
-      ports:
-        - containerPort: 80
-      env:
-        - name: DB_HOST
-          valueFrom:
-            configMapKeyRef:
-              name: smartpark-config
-              key: DB_HOST
+      nodeSelector:
+        role: app-db
 
-        - name: DB_PORT
-          valueFrom:
-            configMapKeyRef:
-              name: smartpark-config
-              key: DB_PORT
+      containers:
+        - name: smartpark-php
+          image: priyanshusingh18/smartpark:latest
+          imagePullPolicy: Always
 
-        - name: DB_NAME
-          valueFrom:
-            configMapKeyRef:
-              name: smartpark-config
-              key: DB_NAME
+          ports:
+            - containerPort: 80
 
-        - name: DB_USER
-          valueFrom:
-            secretKeyRef:
-              name: smartpark-secret
-              key: DB_USER
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: smartpark-config
+                  key: DB_HOST
 
-        - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: smartpark-secret
-              key: DB_PASSWORD
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: smartpark-config
+                  key: DB_PORT
 
-      resources:
-        requests:
-          memory: "64Mi"
-          cpu: "50m"
-        limits:
-          memory: "256Mi"
-          cpu: "300m"
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: smartpark-config
+                  key: DB_NAME
 
-      livenessProbe:
-        httpGet:
-          path: /index.php
-          port: 80
-        initialDelaySeconds: 30
-        periodSeconds: 10
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: smartpark-secret
+                  key: DB_USER
 
-      readinessProbe:
-        httpGet:
-          path: /index.php
-          port: 80
-        initialDelaySeconds: 10
-        periodSeconds: 5
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: smartpark-secret
+                  key: DB_PASSWORD
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+
+          livenessProbe:
+            httpGet:
+              path: /index.php
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+          readinessProbe:
+            httpGet:
+              path: /index.php
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 5
 
 ---
-# ── LoadBalancer Service (External Access on Port 80) ─────────
+# ── Service (Use NodePort for kubeadm AWS setup) ─────────────
 apiVersion: v1
 kind: Service
 metadata:
   name: smartpark-service
   namespace: smartpark
+
 spec:
   selector:
     app: smartpark-app
+
   ports:
     - name: http
       port: 80
       targetPort: 80
-  type: LoadBalancer # AWS creates an ELB automatically
+      nodePort: 30080
+
+  type: NodePort
 
 ---
-# ── Horizontal Pod Autoscaler (Scale up to 10 pods) ───────────
+# ── Horizontal Pod Autoscaler ────────────────────────────────
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: smartpark-hpa
   namespace: smartpark
+
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: smartpark-app
+
   minReplicas: 2
   maxReplicas: 10
+
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 70 # Scale when CPU > 70%
+          averageUtilization: 70
+
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: 80 # Scale when Memory > 80%
+          averageUtilization: 80
