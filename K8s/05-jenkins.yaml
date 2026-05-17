@@ -20,7 +20,7 @@ spec:
     requests:
       storage: 10Gi
 
-  storageClassName: gp2
+  storageClassName: local-path # Use local storage for Jenkins data (fast but not durable)
 
 ---
 # ── Jenkins Deployment ───────────────────────────────────────
