@@ -38,39 +38,49 @@ spec:
       labels:
         app: jenkins
     spec:
-      securityContext:
-        fsGroup: 1000          # Jenkins user group
-        runAsUser: 1000
-      nodeSelector:
-        kubernetes.io/hostname: smartpark-master
-      containers:
-        - name: jenkins
-          image: jenkins/jenkins:lts-jdk17
-          ports:
-            - containerPort: 8080   # Web UI
-            - containerPort: 50000  # Agent communication
-          env:
-            - name: JAVA_OPTS
-              value: "-Xmx2g -Dhudson.plugins.git.GitSCM.ALLOW_LOCAL_CHECKOUT=true"
-          volumeMounts:
-            - name: jenkins-home
-              mountPath: /var/jenkins_home
-            - name: docker-sock
-              mountPath: /var/run/docker.sock  # Access Docker daemon
-          resources:
-  requests:
-    memory: "512Mi"
-    cpu: "250m"
-  limits:
-    memory: "1.5Gi"
-    cpu: "1000m"
-      volumes:
+  securityContext:
+    fsGroup: 1000
+    runAsUser: 1000
+
+  nodeSelector:
+    kubernetes.io/hostname: smartpark-master
+
+  containers:
+    - name: jenkins
+      image: jenkins/jenkins:lts-jdk17
+
+      ports:
+        - containerPort: 8080
+        - containerPort: 50000
+
+      env:
+        - name: JAVA_OPTS
+          value: "-Xmx2g -Dhudson.plugins.git.GitSCM.ALLOW_LOCAL_CHECKOUT=true"
+
+      volumeMounts:
         - name: jenkins-home
-          persistentVolumeClaim:
-            claimName: jenkins-pvc
+          mountPath: /var/jenkins_home
+
         - name: docker-sock
-          hostPath:
-            path: /var/run/docker.sock  # Mount host Docker socket
+          mountPath: /var/run/docker.sock
+
+      resources:
+        requests:
+          memory: "512Mi"
+          cpu: "250m"
+        limits:
+          memory: "1.5Gi"
+          cpu: "1000m"
+
+  volumes:
+    - name: jenkins-home
+      hostPath:
+        path: /data/jenkins
+        type: DirectoryOrCreate
+
+    - name: docker-sock
+      hostPath:
+        path: /var/run/docker.sock
 
 ---
 # ── Jenkins Service ───────────────────────────────────────────
@@ -89,7 +99,7 @@ spec:
     - name: agent
       port: 50000
       targetPort: 50000
-  type: LoadBalancer        # Access Jenkins at EC2_IP:8080
+  type: LoadBalancer # Access Jenkins at EC2_IP:8080
 
 ---
 # ── Jenkins ServiceAccount & RBAC ────────────────────────────
@@ -107,7 +117,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: cluster-admin         # Jenkins needs full cluster access for deployments
+  name: cluster-admin # Jenkins needs full cluster access for deployments
 subjects:
   - kind: ServiceAccount
     name: jenkins-sa

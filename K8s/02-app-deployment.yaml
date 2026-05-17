@@ -31,59 +31,65 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "80"
     spec:
-      nodeSelector:
-        role: app-db
-      containers:
-        - name: smartpark-php
-          image: priyanshusingh18/smartpark:latest
-          # Image is pulled from Docker Hub after Jenkins builds it
-          ports:
-            - containerPort: 80
-          env:
-            - name: DB_HOST
-              valueFrom:
-                configMapKeyRef:
-                  name: smartpark-config
-                  key: DB_HOST
-            - name: DB_PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: smartpark-config
-                  key: DB_PORT
-            - name: DB_NAME
-              valueFrom:
-                configMapKeyRef:
-                  name: smartpark-config
-                  key: DB_NAME
-            - name: DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: smartpark-secret
-                  key: DB_USER
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: smartpark-secret
-                  key: DB_PASSWORD
-          resources:
-  requests:
-    memory: "64Mi"
-    cpu: "50m"
-  limits:
-    memory: "256Mi"
-    cpu: "300m"
-          livenessProbe:
-            httpGet:
-              path: /index.php
-              port: 80
-            initialDelaySeconds: 30
-            periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /index.php
-              port: 80
-            initialDelaySeconds: 10
-            periodSeconds: 5
+  nodeSelector:
+    role: app-db
+  containers:
+    - name: smartpark-php
+      image: priyanshusingh18/smartpark:latest
+      ports:
+        - containerPort: 80
+      env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: smartpark-config
+              key: DB_HOST
+
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: smartpark-config
+              key: DB_PORT
+
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: smartpark-config
+              key: DB_NAME
+
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: smartpark-secret
+              key: DB_USER
+
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: smartpark-secret
+              key: DB_PASSWORD
+
+      resources:
+        requests:
+          memory: "64Mi"
+          cpu: "50m"
+        limits:
+          memory: "256Mi"
+          cpu: "300m"
+
+      livenessProbe:
+        httpGet:
+          path: /index.php
+          port: 80
+        initialDelaySeconds: 30
+        periodSeconds: 10
+
+      readinessProbe:
+        httpGet:
+          path: /index.php
+          port: 80
+        initialDelaySeconds: 10
+        periodSeconds: 5
 
 ---
 # ── LoadBalancer Service (External Access on Port 80) ─────────

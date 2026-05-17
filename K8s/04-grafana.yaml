@@ -55,39 +55,48 @@ spec:
       labels:
         app: grafana
     spec:
-      nodeSelector:
-        role: monitoring
-      containers:
-        - name: grafana
-          image: grafana/grafana:10.2.0
-          ports:
-            - containerPort: 3000
-          env:
-            - name: GF_SECURITY_ADMIN_USER
-              value: "admin"
-            - name: GF_SECURITY_ADMIN_PASSWORD
-              value: "Admin@SmartPark"
-            - name: GF_PATHS_PROVISIONING
-              value: "/etc/grafana/provisioning"
-          volumeMounts:
-            - name: grafana-storage
-              mountPath: /var/lib/grafana
-            - name: grafana-datasource
-              mountPath: /etc/grafana/provisioning/datasources
-          resources:
-  requests:
-    memory: "64Mi"
-    cpu: "50m"
-  limits:
-    memory: "256Mi"
-    cpu: "200m"
-      volumes:
+  nodeSelector:
+    role: monitoring
+  containers:
+    - name: grafana
+      image: grafana/grafana:10.2.0
+      ports:
+        - containerPort: 3000
+
+      env:
+        - name: GF_SECURITY_ADMIN_USER
+          value: "admin"
+
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "Admin@SmartPark"
+
+        - name: GF_PATHS_PROVISIONING
+          value: "/etc/grafana/provisioning"
+
+      volumeMounts:
         - name: grafana-storage
-          persistentVolumeClaim:
-            claimName: grafana-pvc
+          mountPath: /var/lib/grafana
+
         - name: grafana-datasource
-          configMap:
-            name: grafana-datasource
+          mountPath: /etc/grafana/provisioning/datasources
+
+      resources:
+        requests:
+          memory: "64Mi"
+          cpu: "50m"
+        limits:
+          memory: "256Mi"
+          cpu: "200m"
+
+  volumes:
+    - name: grafana-storage
+      hostPath:
+        path: /data/grafana
+        type: DirectoryOrCreate
+
+    - name: grafana-datasource
+      configMap:
+        name: grafana-datasource
 
 ---
 # ── Grafana Service (LoadBalancer - accessible externally) ────
@@ -102,4 +111,4 @@ spec:
   ports:
     - port: 3000
       targetPort: 3000
-  type: LoadBalancer       # Access Grafana at EC2_IP:3000
+  type: LoadBalancer # Access Grafana at EC2_IP:3000
